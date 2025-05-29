@@ -1,22 +1,14 @@
-const iconv = require('iconv-lite');
-
-function formatarLog(nivel, mensagem) {
-  const timestamp = new Date().toLocaleString('pt-BR', { hour12: false });
-  const prefixos = {
-    INFO: 'ℹ️',
-    WARN: '⚠️',
-    ERROR: '❌',
-    DEBUG: '🔍'
-  };
-  return `${prefixos[nivel] || 'ℹ️'} [${timestamp}] ${iconv.decode(Buffer.from(mensagem), 'utf8')}`;
-}
-
 class BotService {
   constructor(teamsClient, messageHandler) {
     this.teamsClient = teamsClient;
     this.messageHandler = messageHandler;
     this.ultimasMensagensLidas = new Map();
     this.mensagensNaoRespondidas = [];
+    this.chatAbertoAtual = null;
+    this.ultimaMensagemEnviadaPeloBot = null;
+    this.ativo = false;
+    this.loopPrincipal = null;
+    this.loopChatAberto = null;
   }
 
   setWindow(win) {
@@ -29,57 +21,52 @@ class BotService {
     this.page = this.teamsClient.page;
     await this.teamsClient.loginIfNeeded();
 
-    console.log(formatarLog('INFO', 'Bot iniciado. Monitorando apenas chats não lidos...'));
+    console.log("✅ Bot iniciado. Monitorando apenas chats não lidos...");
     await this.verificarPendencias();
 
-    setInterval(async () => {
-      console.log(formatarLog('INFO', 'Iniciando nova iteração do bot'));
+    this.ativo = true;
+
+    this.loopPrincipal = setInterval(async () => {
+      if (!this.ativo) return;
       try {
         const chatsNaoLidos = await this.teamsClient.buscarChatsNaoLidos();
 
-        if (chatsNaoLidos.length === 0) {
-          console.log(formatarLog('INFO', 'Nenhum chat não lido encontrado'));
+        if (chatsNaoLidos.length > 0) {
+          console.log(`✅ Chats não lidos encontrados: ${chatsNaoLidos.map(c => c.nome).join(", ")}`);
         }
 
         for (const chat of chatsNaoLidos) {
-          console.log(formatarLog('DEBUG', `Processando chat: ${chat.nome}`));
           try {
             const chatAberto = await this.teamsClient.abrirChat(chat.nome);
             await this.teamsClient.delay(3000);
 
+            this.chatAbertoAtual = chat.nome;
+
             if (!chatAberto) {
-              console.log(formatarLog('WARN', `Não foi possível abrir o chat: ${chat.nome}`));
+              console.warn(`⚠️ Não foi possível abrir o chat: ${chat.nome}`);
               continue;
             }
 
-            const novasMensagens = await this.teamsClient.getMensagensNaoLidas(chat.nome, this.ultimasMensagensLidas.get(chat.nome) || "");
-            if (novasMensagens.length === 0) {
-              console.log(formatarLog('INFO', `Nenhuma mensagem nova em: ${chat.nome}`));
-              await this.teamsClient.voltarParaListaDeChats();
+            const ultimaMensagem = await this.teamsClient.getUltimaMensagem();
+            if (!ultimaMensagem) continue;
+
+            const { texto: mensagemAtual, autor } = ultimaMensagem;
+            const ultimaLida = this.ultimasMensagensLidas.get(chat.nome) || "";
+            const ehRespostaDoBot = mensagemAtual === this.ultimaMensagemEnviadaPeloBot;
+
+            if (this.teamsClient.isMensagemDoBot(autor) || ehRespostaDoBot) {
+              this.ultimasMensagensLidas.set(chat.nome, mensagemAtual);
               continue;
             }
 
-            for (const { texto: mensagemAtual, autor } of novasMensagens) {
-              console.log(formatarLog('INFO', `[${chat.nome}] Nova mensagem extraída: ${mensagemAtual}`));
-              console.log(formatarLog('DEBUG', `[${chat.nome}] Última registrada: ${this.ultimasMensagensLidas.get(chat.nome) || ""}`));
-
+            if (mensagemAtual && mensagemAtual.toLowerCase() !== ultimaLida.toLowerCase()) {
               const resposta = this.messageHandler.processar(mensagemAtual, chat.nome);
-              console.log(formatarLog('DEBUG', `[${chat.nome}] Resposta do handler: ${resposta}`));
+              console.log(`[${chat.nome}] Resposta do handler:`, resposta);
 
               if (resposta) {
-                console.log(formatarLog('INFO', `[${chat.nome}] Enviando resposta programada: '${resposta}'`));
                 await this.teamsClient.enviarMensagem(resposta);
-                this.ultimasMensagensLidas.set(chat.nome, mensagemAtual);
+                this.ultimaMensagemEnviadaPeloBot = resposta;
               } else {
-                if (this.teamsClient.isMensagemDoBot(autor)) {
-                  console.log(formatarLog('INFO', `[${chat.nome}] Mensagem ignorada pois foi enviada pelo bot`));
-                  this.ultimasMensagensLidas.set(chat.nome, mensagemAtual);
-                  await this.teamsClient.voltarParaListaDeChats();
-                  continue;
-                }
-
-                console.log(formatarLog('INFO', `[${chat.nome}] Mensagem não corresponde a nenhuma automação`));
-
                 this.mensagensNaoRespondidas.push({
                   nome: chat.nome,
                   mensagem: mensagemAtual,
@@ -94,27 +81,78 @@ class BotService {
                     hora: new Date().toLocaleTimeString()
                   });
                 }
-
-                this.ultimasMensagensLidas.set(chat.nome, mensagemAtual);
               }
+
+              this.ultimasMensagensLidas.set(chat.nome, mensagemAtual);
             }
 
-            await this.teamsClient.voltarParaListaDeChats();
             await this.teamsClient.delay(1500);
           } catch (erroInterno) {
-            console.log(formatarLog('ERROR', `Erro ao processar o chat '${chat.nome}': ${erroInterno.message}`));
-            await this.teamsClient.voltarParaListaDeChats();
+            console.error(`❌ Erro ao processar o chat '${chat.nome}':`, erroInterno.message);
           }
         }
-        console.log(formatarLog('INFO', 'Finalizando iteração do bot'));
       } catch (error) {
-        console.log(formatarLog('ERROR', `Erro no loop principal do bot: ${error.message}`));
+        console.error("❌ Erro no loop principal do bot:", error.message);
       }
     }, 12000);
+
+    this.loopChatAberto = setInterval(async () => {
+      if (!this.ativo || !this.chatAbertoAtual) return;
+
+      try {
+        const ultimaMensagem = await this.teamsClient.getUltimaMensagem();
+        if (!ultimaMensagem) return;
+
+        const { texto: mensagemAtual, autor } = ultimaMensagem;
+        const ultimaLida = this.ultimasMensagensLidas.get(this.chatAbertoAtual) || "";
+        const ehRespostaDoBot = mensagemAtual === this.ultimaMensagemEnviadaPeloBot;
+
+        if (this.teamsClient.isMensagemDoBot(autor) || ehRespostaDoBot) return;
+
+        if (mensagemAtual && mensagemAtual.toLowerCase() !== ultimaLida.toLowerCase()) {
+          const resposta = this.messageHandler.processar(mensagemAtual, this.chatAbertoAtual);
+          console.log(`[${this.chatAbertoAtual}] (chat ativo) Nova mensagem: '${mensagemAtual}'`);
+
+          if (resposta) {
+            await this.teamsClient.enviarMensagem(resposta);
+            this.ultimaMensagemEnviadaPeloBot = resposta;
+          } else {
+            this.mensagensNaoRespondidas.push({
+              nome: this.chatAbertoAtual,
+              mensagem: mensagemAtual,
+              hora: new Date().toLocaleTimeString()
+            });
+
+            if (this.win) {
+              this.win.webContents.send("mensagem-nao-respondida", {
+                nome: this.chatAbertoAtual,
+                mensagem: mensagemAtual,
+                hora: new Date().toLocaleTimeString()
+              });
+            }
+          }
+
+          this.ultimasMensagensLidas.set(this.chatAbertoAtual, mensagemAtual);
+        }
+      } catch (err) {
+        console.error(`❌ Erro ao monitorar chat ativo: ${err.message}`);
+      }
+    }, 5000);
+  }
+
+  parar() {
+    console.log("🛑 Bot desligado manualmente. Parando monitoramento.");
+    this.ativo = false;
+
+    if (this.loopPrincipal) clearInterval(this.loopPrincipal);
+    if (this.loopChatAberto) clearInterval(this.loopChatAberto);
+
+    this.loopPrincipal = null;
+    this.loopChatAberto = null;
   }
 
   async verificarPendencias() {
-    console.log(formatarLog('INFO', 'Verificando pendências de mensagens...'));
+    console.log("🔁 Verificando pendências de mensagens...");
 
     const mensagensPendentes = [...this.mensagensNaoRespondidas];
     this.mensagensNaoRespondidas = [];
@@ -125,7 +163,7 @@ class BotService {
       try {
         const chatAberto = await this.teamsClient.abrirChat(nome);
         if (!chatAberto) {
-          console.log(formatarLog('WARN', `Não foi possível abrir o chat: ${nome}`));
+          console.warn(`⚠️ Não foi possível abrir o chat: ${nome}`);
           this.mensagensNaoRespondidas.push(item);
           continue;
         }
@@ -149,17 +187,16 @@ class BotService {
         }
 
         if (houveRespostaReal) {
-          console.log(formatarLog('INFO', `${nome} respondeu. Removendo da interface`));
+          console.log(`🧹 ${nome} respondeu. Removendo da interface.`);
           if (this.win) {
             this.win.webContents.send("remover-mensagem-pendente", { nome, mensagem });
           }
         } else {
-          console.log(formatarLog('INFO', `${nome} ainda não respondeu. Mantendo como pendente`));
+          console.log(`🔄 ${nome} ainda não respondeu. Mantendo como pendente.`);
           this.mensagensNaoRespondidas.push(item);
         }
-
       } catch (erro) {
-        console.log(formatarLog('ERROR', `Erro ao verificar pendência de ${nome}: ${erro.message}`));
+        console.error(`❌ Erro ao verificar pendência de ${nome}:`, erro.message);
         this.mensagensNaoRespondidas.push(item);
       }
 

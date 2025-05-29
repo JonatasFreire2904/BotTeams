@@ -31,7 +31,7 @@ ipcMain.on("login-manual", async () => {
 
   bot.setWindow(global.win); // envia janela para comunicação
   global.botInstance = bot;
-  
+
   win.webContents.send("login-status", { status: "iniciando" });
 
   try {
@@ -63,6 +63,7 @@ ipcMain.on("verificar-pendencias", async () => {
     await global.botInstance.verificarPendencias();
   }
 });
+
 
 app.whenReady().then(() => {
   createWindow();

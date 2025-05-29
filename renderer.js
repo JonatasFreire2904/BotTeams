@@ -3,6 +3,7 @@ const btnLogin = document.getElementById("btnLogin");
 const toggleBot = document.getElementById("toggleBot");
 const statusTexto = document.getElementById("statusTexto");
 const btnClearLog = document.getElementById("btnClearLog");
+const logoImage = document.querySelector(".logo");
 
 const mensagensPendentes = new Map();
 let statusLi = null;
@@ -22,6 +23,7 @@ toggleBot.addEventListener("change", () => {
     window.electronAPI.iniciarBot();
     window.electronAPI.verificarMensagensPendentes();
     statusTexto.textContent = "Bot ativado ✅";
+    logoImage.src = "img/NicNicTrabalhando.png";
 
     // Limpa mensagens anteriores de status
     const linhasDeStatus = Array.from(logArea.querySelectorAll("li")).filter(li =>
@@ -38,6 +40,7 @@ toggleBot.addEventListener("change", () => {
   } else {
     window.electronAPI.pararBot();
     statusTexto.textContent = "Bot desligado";
+    logoImage.src = "img/NicNicDormindo.png";
     
     statusLi.innerHTML = `
       <span style="color: #e74c3c">🤖 Bot desativado manualmente.</span>

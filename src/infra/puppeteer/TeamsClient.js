@@ -1,5 +1,3 @@
-const iconv = require('iconv-lite');
-
 class TeamsClient {
   constructor(page) {
     this.page = page;
@@ -9,15 +7,21 @@ class TeamsClient {
   async delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-  
 
   isMensagemDoBot(autor) {
-    return (
+    const ehBot =
       autor &&
       this.nomeDoUsuario &&
-      autor.toLowerCase() === this.nomeDoUsuario.toLowerCase()
-    );
+      autor.toLowerCase() === this.nomeDoUsuario.toLowerCase();
+
+    console.log("🔍 Verificando se é do bot:");
+    console.log("   → Autor da mensagem:", autor);
+    console.log("   → Nome do bot (logado):", this.nomeDoUsuario);
+    console.log("   → Resultado:", ehBot ? "✅ É do bot" : "❌ Não é do bot");
+
+    return ehBot;
   }
+
 
   async loginIfNeeded() {
     console.log("Aguardando login manual...");
@@ -60,28 +64,24 @@ class TeamsClient {
     }, limit);
   }
 
-  // Em TeamsClient.js
-  async getMensagensNaoLidas(chatNome, ultimaLida) {
-    try {
-      const mensagens = await this.page.evaluate(() => {
-        const mensagens = Array.from(document.querySelectorAll('[data-tid="chat-pane-message"]'));
-        return mensagens.map(msg => {
-          const texto = msg.querySelector('[id^="content-"]')?.innerText.trim();
-          const autor = msg.querySelector('[data-tid="message-author"]')?.innerText.trim();
-          return { texto, autor };
-        }).filter(m => m.texto && m.autor);
-      });
+  async getUltimaMensagem() {
+    return await this.page.evaluate(() => {
+      const mensagens = Array.from(document.querySelectorAll('[data-tid="chat-pane-message"]'));
+      if (!mensagens.length) return null;
 
-      const novasMensagens = mensagens.filter(msg =>
-        msg.texto.toLowerCase() !== ultimaLida.toLowerCase() &&
-        !this.isMensagemDoBot(msg.autor)
-      );
+      const ultimaMsg = mensagens.reverse().find(msg => msg.getAttribute("data-last-visible") === "true");
+      if (!ultimaMsg) return null;
 
-      return novasMensagens;
-    } catch (error) {
-      console.error("❌ Erro ao obter mensagens não lidas:", error.message);
-      return [];
-    }
+      const conteudo = ultimaMsg.querySelector('[id^="content-"]');
+      const texto = conteudo?.innerText.trim() || null;
+
+      const autor = ultimaMsg.querySelector('[data-tid="message-author"]')?.innerText.trim();
+
+      return {
+        texto,
+        autor
+      };
+    });
   }
 
   async enviarMensagem(texto) {
@@ -119,7 +119,7 @@ class TeamsClient {
     try {
       await this.page.waitForSelector('[role="list"]', { timeout: 10000 });
       const chats = await this.page.evaluate(() => {
-        const chatsEncontrados = new Set(); // Usar Set para evitar duplicatas
+        const chatsEncontrados = [];
         document.querySelectorAll('[role="treeitem"]').forEach(element => {
           const temNotificacao = element.querySelector('.notification-badge, .activity-badge, [data-tid="activity-badge-indicator"]');
           const nomeElement = element.querySelector('[id^="title-chat-list-item_"]');
@@ -128,18 +128,18 @@ class TeamsClient {
             const style = window.getComputedStyle(nomeElement);
             const temNegrito = style.fontWeight === '700' || style.fontWeight === 'bold';
             if (temNotificacao || temNegrito) {
-              chatsEncontrados.add(JSON.stringify({ nome, temNaoLido: true }));
+              chatsEncontrados.push({ nome, temNaoLido: true });
             }
           }
         });
-        return Array.from(chatsEncontrados).map(item => JSON.parse(item));
+        return chatsEncontrados;
       });
 
-      console.log(formatarLog('INFO', `Chats não lidos encontrados: ${chats.length}`));
-      console.log(formatarLog('DEBUG', `Nomes dos chats: ${chats.map(c => c.nome).join(", ")}`));
+      console.log("✅ Chats não lidos encontrados:", chats.length);
+      console.log(chats.map(c => c.nome));
       return chats;
     } catch (error) {
-      console.log(formatarLog('ERROR', `Erro ao buscar chats: ${error.message}`));
+      console.error("❌ Erro ao buscar chats:", error.message);
       return [];
     }
   }
@@ -207,23 +207,6 @@ class TeamsClient {
     } catch (error) {
       console.error("❌ Erro ao listar chats visíveis:", error.message);
       return [];
-    }
-  }
-
-  async voltarParaListaDeChats() {
-    try {
-      await this.page.evaluate(() => {
-        const listaChats = document.querySelector('[role="list"]');
-        if (listaChats) {
-          listaChats.click();
-          return true;
-        }
-        return false;
-      });
-      console.log("✅ Retornou à lista de chats");
-      await this.delay(1000);
-    } catch (error) {
-      console.error("❌ Erro ao retornar à lista de chats:", error.message);
     }
   }
 }
