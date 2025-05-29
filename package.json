@@ -1,0 +1,20 @@
+{
+  "name": "botteams",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "botteams": "file:",
+    "iconv-lite": "^0.6.3",
+    "puppeteer": "^24.9.0"
+  },
+  "devDependencies": {
+    "electron": "^36.3.1"
+  }
+}
