@@ -8,34 +8,38 @@ class TeamsClient {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  isMensagemDoBot(autor) {
-    const ehBot =
-      autor &&
-      this.nomeDoUsuario &&
-      autor.toLowerCase() === this.nomeDoUsuario.toLowerCase();
-
-    console.log("🔍 Verificando se é do bot:");
-    console.log("   → Autor da mensagem:", autor);
-    console.log("   → Nome do bot (logado):", this.nomeDoUsuario);
-    console.log("   → Resultado:", ehBot ? "✅ É do bot" : "❌ Não é do bot");
-
-    return ehBot;
-  }
-
-
   async loginIfNeeded() {
     console.log("Aguardando login manual...");
 
     try {
+      // Verificar se a página ainda está ativa
+      if (!this.page || this.page.isClosed()) {
+        throw new Error("Página do Puppeteer está fechada ou inválida.");
+      }
+
       await Promise.race([
         this.page.waitForSelector('#i0116', { timeout: 30000 }),
         this.page.waitForSelector('[role="treeitem"][data-item-type="chat"]', { timeout: 30000 })
-      ]);
+      ]).catch(err => {
+        throw new Error(`Timeout ao aguardar seletores: ${err.message}`);
+      });
 
       await this.delay(5000);
       console.log("Login concluído e interface carregada.");
     } catch (err) {
       console.error("Erro ao aguardar interface do Teams:", err.message);
+      // Tentar recarregar a página se o frame estiver desconectado
+      if (err.message.includes("detached Frame")) {
+        console.warn("⚠️ Frame desconectado detectado. Tentando recarregar a página...");
+        await this.page.reload({ waitUntil: "networkidle2" });
+        await this.delay(5000);
+        try {
+          await this.page.waitForSelector('[role="treeitem"][data-item-type="chat"]', { timeout: 30000 });
+          console.log("✅ Página recarregada com sucesso.");
+        } catch (reloadErr) {
+          throw new Error("Falha ao recarregar a página: " + reloadErr.message);
+        }
+      }
       throw new Error("Falha no login ou interface não carregada corretamente.");
     }
 
@@ -65,23 +69,67 @@ class TeamsClient {
   }
 
   async getUltimaMensagem() {
-    return await this.page.evaluate(() => {
-      const mensagens = Array.from(document.querySelectorAll('[data-tid="chat-pane-message"]'));
-      if (!mensagens.length) return null;
+    const nomeContato = await this.getNomeDoContatoAtual();
+    if (!nomeContato) {
+      console.warn("⚠️ Nome do contato atual não detectado. Tentando identificar via chat list...");
+      // Tentativa de obter o nome do contato a partir da lista de chats
+      const chatsVisiveis = await this.listarTodosOsChatsVisiveis();
+      const chatAtivo = await this.page.evaluate(() => {
+        const chatSelecionado = document.querySelector('[role="treeitem"][data-item-type="chat"][aria-selected="true"]');
+        if (chatSelecionado) {
+          const nomeElement = chatSelecionado.querySelector('[id^="title-chat-list-item_"]');
+          return nomeElement?.innerText.trim() || null;
+        }
+        return null;
+      });
+      if (chatAtivo && chatsVisiveis.includes(chatAtivo)) {
+        console.log(`🔍 Nome do contato detectado via lista de chats: ${chatAtivo}`);
+        nomeContato = chatAtivo;
+      } else {
+        console.error("❌ Não foi possível determinar o contato atual.");
+      }
+    } else {
+      console.log(`🔍 Nome do contato detectado via getNomeDoContatoAtual: ${nomeContato}`);
+    }
 
-      const ultimaMsg = mensagens.reverse().find(msg => msg.getAttribute("data-last-visible") === "true");
-      if (!ultimaMsg) return null;
+    const mensagem = await this.page.evaluate(() => {
+      const mensagens = Array.from(document.querySelectorAll('[data-tid="chat-pane-message"]')).reverse();
 
-      const conteudo = ultimaMsg.querySelector('[id^="content-"]');
-      const texto = conteudo?.innerText.trim() || null;
+      for (const msg of mensagens) {
+        const isBot = msg.closest('.fui-ChatMyMessage');
+        if (isBot) continue;
 
-      const autor = ultimaMsg.querySelector('[data-tid="message-author"]')?.innerText.trim();
+        const texto = msg.querySelector('[id^="content-"]')?.innerText?.trim();
+        if (!texto) continue;
 
-      return {
-        texto,
-        autor
-      };
+        const autorElement = msg.querySelector('.ui-chat__message__author') ||
+          msg.querySelector('[data-tid="message-author-name"]');
+        const autor = autorElement?.innerText?.trim() || "CLIENTE";
+
+        return { texto, autor };
+      }
+      return null;
     });
+
+    if (mensagem) {
+      return { ...mensagem, nomeContato };
+    }
+    return null;
+  }
+
+  async isMensagemDoBot(autor) {
+    if (!autor || autor === "Desconhecido") {
+      console.warn("⚠️ Autor não definido. Considerando que NÃO é o bot.");
+      return false;
+    }
+
+    if (autor === "BOT") {
+      console.log("✅ [isMensagemDoBot] Mensagem enviada pelo bot.");
+      return true;
+    }
+
+    console.log(`🧍 [isMensagemDoBot] Mensagem foi enviada por ${autor} (não é o bot).`);
+    return false;
   }
 
   async enviarMensagem(texto) {
@@ -208,6 +256,26 @@ class TeamsClient {
       console.error("❌ Erro ao listar chats visíveis:", error.message);
       return [];
     }
+  }
+
+  async getNomeDoContatoAtual() {
+    const nomeContato = await this.page.evaluate(() => {
+      // Tenta o seletor original
+      let el = document.querySelector('[data-tid="chat-topic-menu"] span');
+      if (el) return el.innerText?.trim();
+
+      // Tenta seletores alternativos
+      el = document.querySelector('.fui-ChatHeader__title span') || // Título do chat no Teams
+             document.querySelector('[data-tid="chat-header-title"]') || // Outro possível seletor
+             document.querySelector('.chat-header span'); // Seletor genérico
+      return el?.innerText?.trim() || null;
+    });
+
+    if (!nomeContato) {
+      console.warn("⚠️ Nenhum seletor encontrou o nome do contato atual. HTML da área do cabeçalho:", 
+        await this.page.evaluate(() => document.querySelector('.fui-ChatHeader')?.outerHTML || "Cabeçalho não encontrado"));
+    }
+    return nomeContato;
   }
 }
 

@@ -81,6 +81,7 @@ btnClearLog.addEventListener("click", () => {
   while (logArea.firstChild) {
     logArea.removeChild(logArea.firstChild);
   }
+  mensagensPendentes.clear(); // Limpar também o Map de mensagens pendentes
   statusLi = null;
 });
 
@@ -102,16 +103,31 @@ function adicionarLog(texto) {
 // Nova mensagem não respondida
 window.electronAPI.onMensagemNaoRespondida((_event, data) => {
   const { nome, mensagem, hora } = data;
-  mensagensPendentes.set(nome, mensagem);
+  console.log(`📥 Recebido evento 'mensagem-nao-respondida': { nome: "${nome}", mensagem: "${mensagem}", hora: "${hora}" }`);
+
+  // Verificar se a mensagem já existe no Map para evitar duplicatas
+  const chave = `${nome}:${mensagem}`;
+  if (mensagensPendentes.has(chave)) {
+    console.log(`🔍 Mensagem pendente já existe: ${chave}. Ignorando.`);
+    return;
+  }
+
+  mensagensPendentes.set(chave, { nome, mensagem, hora });
 
   const li = document.createElement("li");
   li.innerHTML = `📨 <b>Não respondida de ${nome}</b> às ${hora}: <span style="font-style: italic">"${mensagem}"</span>`;
   li.classList.add("nao-respondida");
+  li.dataset.chave = chave; // Armazenar a chave para facilitar remoção
 
   const trash = document.createElement("button");
   trash.innerText = "🗑️";
   trash.style.marginLeft = "10px";
-  trash.onclick = () => li.remove();
+  trash.onclick = () => {
+    li.remove();
+    mensagensPendentes.delete(chave);
+    const divider = li.nextElementSibling;
+    if (divider && divider.tagName === "HR") divider.remove();
+  };
   li.appendChild(trash);
 
   logArea.appendChild(li);
@@ -126,14 +142,16 @@ window.electronAPI.onMensagemNaoRespondida((_event, data) => {
 // Remover mensagem tratada
 window.electronAPI.onRemoverMensagemPendente((_event, data) => {
   const { nome, mensagem } = data;
-  const logItems = logArea.querySelectorAll("li");
+  const chave = `${nome}:${mensagem}`;
+  console.log(`🗑️ Recebido evento 'remover-mensagem-pendente': { nome: "${nome}", mensagem: "${mensagem}" }`);
 
+  const logItems = logArea.querySelectorAll("li.nao-respondida");
   logItems.forEach(li => {
-    const texto = li.textContent || "";
-    if (texto.includes(nome) && texto.includes(mensagem)) {
+    if (li.dataset.chave === chave) {
       const divider = li.nextElementSibling;
       li.remove();
       if (divider && divider.tagName === "HR") divider.remove();
+      mensagensPendentes.delete(chave);
     }
   });
 });
