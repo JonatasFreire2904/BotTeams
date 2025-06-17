@@ -1,21 +1,18 @@
 {
-  "name": "botteams",
-  "version": "1.0.0",
-  "main": "main.js",
+  "name": "teams-chat-bot",
+  "version": "1.1.0",
+  "description": "Bot que monitora mensagens do Microsoft Teams usando Puppeteer",
+  "main": "index.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "cross-env ELECTRON_ENABLE_LOGGING=1 ELECTRON_LOG_ASAR_READS=0 electron . index.js"
+    "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "botteams": "file:",
-    "puppeteer": "^24.9.0"
+    "express": "^5.1.0",
+    "nodemon": "^3.1.10",
+    "open": "^10.1.2",
+    "puppeteer": "^21.3.8"
   },
-  "devDependencies": {
-    "cross-env": "^7.0.3",
-    "electron": "^36.3.1",
-    "iconv-lite": "^0.6.3"
-  }
+  "author": "Nic-labo",
+  "license": "MIT"
 }

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -196,11 +197,11 @@
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
-    input:checked + .slider {
+    input:checked+.slider {
       background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     }
 
-    input:checked + .slider:before {
+    input:checked+.slider:before {
       transform: translateX(calc(clamp(44px, 7vw, 52px) - clamp(24px, 4vw, 28px)));
     }
 
@@ -263,7 +264,8 @@
         justify-content: center;
       }
 
-      #btnLogin, #btnClearLog {
+      #btnLogin,
+      #btnClearLog {
         width: 100%;
       }
     }
@@ -277,6 +279,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="header">
@@ -310,6 +313,61 @@
     </div>
   </div>
 
-  <script src="renderer.js"></script>
+  <script>
+    async function fazerLogin() {
+      try {
+        const response = await fetch('/login', { method: 'POST' });
+        if (response.ok) {
+          alert('Login iniciado no Teams!');
+        } else {
+          alert('Erro ao iniciar login no Teams');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Erro na requisição');
+      }
+    }
+  </script>
+  <script>
+    document.getElementById('btnLogin').addEventListener('click', async () => {
+      await fetch('/login', { method: 'POST' });
+    });
+
+    document.getElementById('toggleBot').addEventListener('change', async (e) => {
+      const ligado = e.target.checked;
+      const status = document.getElementById('statusTexto');
+      if (ligado) {
+        status.textContent = 'Bot ligado';
+        document.getElementById("log").innerHTML = ""; // limpa UI também
+        await fetch('/start-bot', { method: 'POST' });
+      } else {
+        status.textContent = 'Bot desligado';
+        await fetch('/stop-bot', { method: 'POST' });
+      }
+    });
+
+  </script>
+  <script>
+    async function atualizarResumo() {
+      const resp = await fetch("/resumo");
+      const dados = await resp.json();
+
+      const log = document.getElementById("log");
+      log.innerHTML = ""; // limpa lista
+
+      dados.forEach((linha) => {
+        const li = document.createElement("li");
+        li.textContent = linha;
+        log.appendChild(li);
+      });
+    }
+
+    // Atualiza a cada 5 segundos
+    setInterval(atualizarResumo, 5000);
+  </script>
+
+
+
 </body>
+
 </html>
