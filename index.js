@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const open = require("open").default;
 const { Bot } = require("./core/Bot");
+const fs = require("fs");
 
 const app = express();
 const port = 3000;
@@ -52,6 +53,35 @@ app.post("/stop-bot", (req, res) => {
   }
 });
 
+// Endpoint to set the LLM prompt
+app.post("/set-prompt", express.json(), (req, res) => {
+  const { prompt } = req.body;
+  if (typeof prompt !== "string") {
+    return res.status(400).send("Prompt inválido");
+  }
+  try {
+    fs.writeFileSync(path.join(__dirname, "prompt.txt"), prompt, "utf-8");
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("Erro ao salvar prompt.txt:", err);
+    res.sendStatus(500);
+  }
+});
+
+// Endpoint to get the current prompt
+app.get("/get-prompt", (req, res) => {
+  try {
+    const promptPath = path.join(__dirname, "prompt.txt");
+    let prompt = "";
+    if (fs.existsSync(promptPath)) {
+      prompt = fs.readFileSync(promptPath, "utf-8");
+    }
+    res.json({ prompt });
+  } catch (err) {
+    res.json({ prompt: "" });
+  }
+});
+
 // Iniciar servidor e abrir interface
 app.listen(port, () => {
   console.log(`🔵 Interface disponível em http://localhost:${port}`);
@@ -61,3 +91,21 @@ app.listen(port, () => {
 app.get("/resumo", (req, res) => {
   res.json(bot.getResumoRespostas());
 });
+
+app.post("/salvar-ip", express.json(), (req, res) => {
+  const { host } = req.body;
+  if (!host) return res.status(400).send("Host inválido");
+
+  const caminho = path.join(__dirname, "llm_config.json");
+  fs.writeFileSync(caminho, JSON.stringify({ host }, null, 2), "utf8");
+  res.send("IP salvo");
+});
+
+// app.get("/resumo-bloqueadas", (req, res) => {
+//   res.json(
+//     [...bot.respostasBloqueadasPorChat.entries()].map(
+//       ([nome, qtd]) => `${nome} (${qtd})`
+//     )
+//   );
+// });
+

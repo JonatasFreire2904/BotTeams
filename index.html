@@ -283,7 +283,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <img src="img/nic_labs_ti_logo.png" alt="Nick Labs Logo" class="logo">
+      <img src="img/nic_labs_ti_logo.png" alt="Nick Labs Logo" class="logo" id="logoStatus">
       <div class="header-items">
         <button id="btnLogin">
           <span>🔐</span>
@@ -301,8 +301,32 @@
             <span>🗑️</span>
             Limpar Log
           </button>
+
+          <!-- Campo de IP do LLM -->
+          <div style="margin-top:1rem;">
+            <label for="ipBox" style="font-weight:600;">IP do LLM (sem http):</label>
+            <input id="ipBox" type="text" placeholder="192.168.15.14"
+              style="width:250px;padding:0.5rem;border:1px solid #ccc;border-radius:6px;margin-right:1rem;" />
+            <button id="btnSaveIP"
+              style="background:#3b82f6;color:white;padding:0.5rem 1rem;border:none;border-radius:8px;cursor:pointer;">Salvar
+              IP</button>
+            <span id="ipStatus" style="margin-left:1rem;font-size:0.9rem;"></span>
+          </div>
+
+
         </div>
       </div>
+    </div>
+
+    <!-- Prompt input box -->
+    <div class="messages-card" style="margin-bottom: 1.5rem;">
+      <label for="promptBox" style="font-weight:600;display:block;margin-bottom:0.5rem;">Prompt do LLM:</label>
+      <textarea id="promptBox" rows="2"
+        style="width:100%;padding:0.7rem;border-radius:8px;border:1px solid #ccc;font-size:1rem;resize:vertical;">Você agora é minha secretária. Responda apenas com "sim" ou "não" de forma simples.</textarea>
+      <button id="btnSavePrompt"
+        style="margin-top:0.7rem;background:linear-gradient(135deg,#10b981 0%,#059669 100%);color:white;border:none;padding:0.6rem 1.2rem;border-radius:10px;cursor:pointer;font-weight:700;font-size:1rem;box-shadow:0 6px 20px rgba(16,185,129,0.3);">Salvar
+        Prompt</button>
+      <span id="promptStatus" style="margin-left:1rem;font-size:0.95rem;"></span>
     </div>
 
     <div class="messages-card">
@@ -311,61 +335,151 @@
       </div>
       <ul id="log"></ul>
     </div>
-  </div>
 
-  <script>
-    async function fazerLogin() {
-      try {
-        const response = await fetch('/login', { method: 'POST' });
-        if (response.ok) {
-          alert('Login iniciado no Teams!');
-        } else {
-          alert('Erro ao iniciar login no Teams');
+    <!-- 👇 Adicione aqui -->
+    <div class="messages-card" style="margin-top: 2rem;">
+      <div class="messages-header">
+        <h3>🚫 Mensagens Bloqueadas</h3>
+      </div>
+      <ul id="logBloqueadas"></ul>
+    </div>
+
+    <script>
+      async function fazerLogin() {
+        try {
+          const response = await fetch('/login', { method: 'POST' });
+          if (response.ok) {
+            alert('Login iniciado no Teams!');
+          } else {
+            alert('Erro ao iniciar login no Teams');
+          }
+        } catch (error) {
+          console.error(error);
+          alert('Erro na requisição');
         }
-      } catch (error) {
-        console.error(error);
-        alert('Erro na requisição');
       }
-    }
-  </script>
-  <script>
-    document.getElementById('btnLogin').addEventListener('click', async () => {
-      await fetch('/login', { method: 'POST' });
-    });
-
-    document.getElementById('toggleBot').addEventListener('change', async (e) => {
-      const ligado = e.target.checked;
-      const status = document.getElementById('statusTexto');
-      if (ligado) {
-        status.textContent = 'Bot ligado';
-        document.getElementById("log").innerHTML = ""; // limpa UI também
-        await fetch('/start-bot', { method: 'POST' });
-      } else {
-        status.textContent = 'Bot desligado';
-        await fetch('/stop-bot', { method: 'POST' });
-      }
-    });
-
-  </script>
-  <script>
-    async function atualizarResumo() {
-      const resp = await fetch("/resumo");
-      const dados = await resp.json();
-
-      const log = document.getElementById("log");
-      log.innerHTML = ""; // limpa lista
-
-      dados.forEach((linha) => {
-        const li = document.createElement("li");
-        li.textContent = linha;
-        log.appendChild(li);
+    </script>
+    <script>
+      document.getElementById('btnLogin').addEventListener('click', async () => {
+        await fetch('/login', { method: 'POST' });
       });
-    }
 
-    // Atualiza a cada 5 segundos
-    setInterval(atualizarResumo, 5000);
-  </script>
+      document.getElementById('toggleBot').addEventListener('change', async (e) => {
+        const ligado = e.target.checked;
+        const status = document.getElementById('statusTexto');
+        const logo = document.getElementById('logoStatus');
+        if (ligado) {
+          status.textContent = 'Bot ligado';
+          logo.src = 'img/NicNicTrabalhando.png'; // 👈 imagem quando ligado
+          document.getElementById("log").innerHTML = "";
+          await fetch('/start-bot', { method: 'POST' });
+        } else {
+          status.textContent = 'Bot desligado';
+          logo.src = 'img/NicNicDormindo.png'; // 👈 imagem quando desligado
+          await fetch('/stop-bot', { method: 'POST' });
+        }
+      });
 
+    </script>
+    <script>
+      async function atualizarResumo() {
+        const resp = await fetch("/resumo");
+        const dados = await resp.json();
+
+        const log = document.getElementById("log");
+        log.innerHTML = ""; // limpa lista
+
+        dados.forEach((linha) => {
+          const li = document.createElement("li");
+          li.textContent = linha;
+          log.appendChild(li);
+        });
+      }
+
+      // Atualiza a cada 5 segundos
+      setInterval(atualizarResumo, 5000);
+
+      async function atualizarBloqueadas() {
+        try {
+          const resp = await fetch("/resumo-bloqueadas");
+          const dados = await resp.json();
+          const log = document.getElementById("logBloqueadas");
+          log.innerHTML = "";
+
+          dados.forEach((linha) => {
+            const li = document.createElement("li");
+            li.textContent = linha;
+            log.appendChild(li);
+          });
+        } catch (e) {
+          console.error("Erro ao buscar bloqueadas:", e);
+        }
+      }
+
+      // Atualiza bloqueadas a cada 5 segundos
+      setInterval(atualizarBloqueadas, 5000);
+
+    </script>
+    <script>
+      document.getElementById('btnSavePrompt').addEventListener('click', async () => {
+        const prompt = document.getElementById('promptBox').value;
+        const status = document.getElementById('promptStatus');
+        try {
+          const resp = await fetch('/set-prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+          });
+          if (resp.ok) {
+            status.textContent = 'Prompt salvo!';
+            status.style.color = '#059669';
+          } else {
+            status.textContent = 'Erro ao salvar prompt';
+            status.style.color = '#dc2626';
+          }
+        } catch (e) {
+          status.textContent = 'Erro de conexão';
+          status.style.color = '#dc2626';
+        }
+        setTimeout(() => { status.textContent = ''; }, 3000);
+      });
+    </script>
+    <script>
+      // On page load, fetch the current prompt
+      window.addEventListener('DOMContentLoaded', async () => {
+        try {
+          const resp = await fetch('/get-prompt');
+          if (resp.ok) {
+            const data = await resp.json();
+            document.getElementById('promptBox').value = data.prompt || '';
+          }
+        } catch (e) {
+          // ignore
+        }
+      });
+    </script>
+
+    <script>
+      document.getElementById("btnSaveIP").addEventListener("click", async () => {
+        const ip = document.getElementById("ipBox").value.trim();
+        if (!ip) {
+          document.getElementById("ipStatus").innerText = "⚠️ IP não pode estar vazio.";
+          return;
+        }
+
+        const resp = await fetch("/salvar-ip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host: ip })
+        });
+
+        if (resp.ok) {
+          document.getElementById("ipStatus").innerText = "✅ IP salvo com sucesso!";
+        } else {
+          document.getElementById("ipStatus").innerText = "❌ Erro ao salvar IP.";
+        }
+      });
+    </script>
 
 
 </body>
