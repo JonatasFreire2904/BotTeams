@@ -62,7 +62,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
+const { fetch } = require("undici"); // <-- Aqui está a mudança
 
 class LLMService {
   constructor() {
@@ -93,7 +93,7 @@ class LLMService {
       return url;
     } catch (e) {
       console.error("❌ Erro ao carregar IP do arquivo llm_config.json:", e.message);
-      return "http://127.0.0.1:1234/v1/chat/completions"; // fallback local
+      return "http://127.0.0.1:1234/v1/chat/completions";
     }
   }
 
@@ -115,11 +115,19 @@ class LLMService {
     };
 
     try {
-      const { data } = await axios.post(this.apiUrl, payload, {
+      const response = await fetch(this.apiUrl, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        timeout: 20_000
+        body: JSON.stringify(payload)
+        // undici já lida com timeout internamente
       });
 
+      if (!response.ok) {
+        console.warn("⚠️ LLM retornou erro HTTP:", response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
       const resposta = data?.choices?.[0]?.message?.content?.trim();
       if (!resposta) {
         console.warn("⚠️ LLM retornou resposta vazia.");

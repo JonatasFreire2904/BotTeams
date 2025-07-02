@@ -1,8 +1,11 @@
 const express = require("express");
 const path = require("path");
-const open = require("open").default;
+//const open = require("open").default;
+const { exec } = require("child_process");
 const { Bot } = require("./core/Bot");
 const fs = require("fs");
+const puppeteer = require('puppeteer');
+
 
 const app = express();
 const port = 3000;
@@ -85,7 +88,7 @@ app.get("/get-prompt", (req, res) => {
 // Iniciar servidor e abrir interface
 app.listen(port, () => {
   console.log(`🔵 Interface disponível em http://localhost:${port}`);
-  open(`http://localhost:${port}`);
+  exec(`start "" "http://localhost:${port}"`);
 });
 
 app.get("/resumo", (req, res) => {
@@ -100,6 +103,11 @@ app.post("/salvar-ip", express.json(), (req, res) => {
   fs.writeFileSync(caminho, JSON.stringify({ host }, null, 2), "utf8");
   res.send("IP salvo");
 });
+
+// puppeteer.launch({
+//   headless: false,
+//   executablePath: puppeteer.executablePath()
+// });
 
 // app.get("/resumo-bloqueadas", (req, res) => {
 //   res.json(

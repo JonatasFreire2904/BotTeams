@@ -4,16 +4,39 @@
   "description": "Bot que monitora mensagens do Microsoft Teams usando Puppeteer",
   "main": "index.js",
   "type": "commonjs",
+  "bin": "index.js",
+  "pkg": {
+    "scripts": [
+      "index.js",
+      "node_modules/axios/**/*.js"
+    ],
+    "assets": [
+      "index.html",
+      "img/**/*",
+      "modules/**/*",
+      "core/**/*",
+      "services/**/*",
+      "prompt.txt",
+      "llm_config.json",
+      "node_modules/puppeteer/.local-chromium/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "pkg . --out-path dist --targets node18-win-x64"
   },
   "dependencies": {
-    "axios": "^1.10.0",
-    "express": "^5.1.0",
+    "chrome-launcher": "^1.2.0",
+    "express": "^4.21.2",
     "node-fetch": "^3.3.2",
     "nodemon": "^3.1.10",
-    "open": "^10.1.2",
-    "puppeteer": "^21.3.8"
+    "puppeteer": "^21.3.8",
+    "puppeteer-core": "^24.11.2",
+    "undici": "^7.11.0"
   },
   "author": "Nic-labo",
   "license": "MIT"
