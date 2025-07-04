@@ -2,32 +2,29 @@
   "name": "teams-chat-bot",
   "version": "1.1.0",
   "description": "Bot que monitora mensagens do Microsoft Teams usando Puppeteer",
-  "main": "index.js",
+  "main": "main.js",
   "type": "commonjs",
-  "bin": "index.js",
-  "pkg": {
-    "scripts": [
-      "index.js",
-      "node_modules/axios/**/*.js"
-    ],
-    "assets": [
-      "index.html",
-      "img/**/*",
-      "modules/**/*",
-      "core/**/*",
-      "services/**/*",
-      "prompt.txt",
-      "llm_config.json",
-      "node_modules/puppeteer/.local-chromium/**/*"
-    ],
-    "targets": [
-      "node18-win-x64"
-    ],
-    "outputPath": "dist"
-  },
   "scripts": {
-    "start": "node index.js",
-    "build": "pkg . --out-path dist --targets node18-win-x64"
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.example.teamsbot",
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "perMachine": true,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "**/*",
+      "!node_modules/puppeteer/.local-chromium/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    }
   },
   "dependencies": {
     "chrome-launcher": "^1.2.0",
@@ -39,5 +36,9 @@
     "undici": "^7.11.0"
   },
   "author": "Nic-labo",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^37.1.0",
+    "electron-builder": "^26.0.12"
+  }
 }

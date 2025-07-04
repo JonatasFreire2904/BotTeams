@@ -8,7 +8,7 @@ const puppeteer = require('puppeteer');
 
 
 const app = express();
-const port = 3000;
+const port = 3100;
 
 // Bot deve ser instanciado fora para reutilização nas rotas
 const bot = new Bot();
@@ -88,7 +88,7 @@ app.get("/get-prompt", (req, res) => {
 // Iniciar servidor e abrir interface
 app.listen(port, () => {
   console.log(`🔵 Interface disponível em http://localhost:${port}`);
-  exec(`start "" "http://localhost:${port}"`);
+  // exec(`start "" "http://localhost:${port}"`);
 });
 
 app.get("/resumo", (req, res) => {
@@ -103,6 +103,15 @@ app.post("/salvar-ip", express.json(), (req, res) => {
   fs.writeFileSync(caminho, JSON.stringify({ host }, null, 2), "utf8");
   res.send("IP salvo");
 });
+
+module.exports = { app, startExpress };
+
+function startExpress() {
+  app.listen(port, () => {
+    console.log(`🟢 Servidor Express rodando em http://localhost:${port}`);
+  });
+}
+
 
 // puppeteer.launch({
 //   headless: false,

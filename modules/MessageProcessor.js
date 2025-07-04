@@ -9,30 +9,62 @@ class MessageProcessor {
     this.llmService.carregarPromptAtualizado();
   }
 
+  // async gerarResposta(mensagem, autor) {
+  //   try {
+  //     console.log(`🧠 Gerando resposta com LLM para: "${mensagem}"`);
+  //     const bruta = await this.llmService.gerarResposta(mensagem);
+  //     if (!bruta) return null;
+
+  //     // Remove prefixos como "LM:", "IA:", "Resposta:"
+  //     const resposta = bruta.replace(/^(LM|IA|BOT|Resposta)[:：]?\s*/i, '').trim();
+
+  //     // Validação contra regras do prompt
+  //     if (
+  //       resposta.split(/\s+/).length > 10 || // mais de 10 palavras
+  //       /(?:IA|modelo|inteligência artificial|sou uma IA|sou um modelo|assistente|language model)/i.test(resposta)
+  //     ) {
+  //       console.warn(`⛔ Resposta inválida detectada e bloqueada: "${resposta}"`);
+  //       return null;
+  //     }
+
+  //     return resposta;
+  //   } catch (err) {
+  //     console.error("❌ Erro ao processar mensagem com LLM:", err);
+  //     return null;
+  //   }
+  // }
+
   async gerarResposta(mensagem, autor) {
-    try {
-      console.log(`🧠 Gerando resposta com LLM para: "${mensagem}"`);
-      const bruta = await this.llmService.gerarResposta(mensagem);
-      if (!bruta) return null;
+  try {
+    console.log(`🧠 Gerando resposta com LLM para: "${mensagem}"`);
+    const bruta = await this.llmService.gerarResposta(mensagem);
+    if (!bruta) return null;
 
-      // Remove prefixos como "LM:", "IA:", "Resposta:"
-      const resposta = bruta.replace(/^(LM|IA|BOT|Resposta)[:：]?\s*/i, '').trim();
+    // Limpa prefixos e espaços ocultos
+    let resposta = bruta
+      .replace(/^(LM|IA|BOT|Resposta)[:：]?\s*/i, '')
+      .replace(/\s+/g, ' ') // substitui múltiplos espaços por 1
+      .trim();
 
-      // Validação contra regras do prompt
-      if (
-        resposta.split(/\s+/).length > 10 || // mais de 10 palavras
-        /(?:IA|modelo|inteligência artificial|sou uma IA|sou um modelo|assistente|language model)/i.test(resposta)
-      ) {
-        console.warn(`⛔ Resposta inválida detectada e bloqueada: "${resposta}"`);
-        return null;
-      }
+    console.log(`📨 Resposta processada: "${resposta}"`);
 
-      return resposta;
-    } catch (err) {
-      console.error("❌ Erro ao processar mensagem com LLM:", err);
+    // Validação contra regras do prompt
+    const palavraCount = resposta.split(/\s+/).length;
+    if (
+      palavraCount > 10 || // mais de 10 palavras
+      /(?:IA|modelo|inteligência artificial|sou uma IA|sou um modelo|assistente|language model)/i.test(resposta)
+    ) {
+      console.warn(`⛔ Resposta inválida detectada e bloqueada: "${resposta}"`);
       return null;
     }
+
+    return resposta;
+  } catch (err) {
+    console.error("❌ Erro ao processar mensagem com LLM:", err);
+    return null;
   }
+}
+
 }
 
 module.exports = MessageProcessor;

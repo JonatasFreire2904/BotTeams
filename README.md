@@ -22,7 +22,7 @@ npm run build
    - Aguarde a interface abrir no navegador (http://localhost:3000)
 
 2. **Configurar:**
-   - **IP do LLM:** Digite o IP do servidor LLM (ex: 192.168.15.14)
+   - **IP do LLM:** Digite o IP do servidor LLM (ex: c)
    - **Prompt:** Configure o prompt que o bot deve usar para responder
 
 3. **Conectar ao Teams:**
